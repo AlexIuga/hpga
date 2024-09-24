@@ -1,0 +1,109 @@
+ if(i_clk'event and i_clk='1') then
+			   if(i_rst='1') then 
+			        CURRENT_STATE <= START;
+			   else 
+			        CURRENT_STATE <= NEXT_STATE;
+			   end if;
+				   
+			   case CURRENT_STATE is
+			        when RESET => 
+			                n_col <= "00000000";
+						    n_righe <= "00000000";
+						    currentPixel <= "00000000";
+						    newPixel <= "00000000";
+						    maxPixelValue <= "00000000";
+						    minPixelValue <= "11111111";
+						    shiftLevel <= "00000000";
+						    o_add <= "0000000000000000";
+							n_pixel <= "0000000000000000";
+						    o_done <= '0';                        ----vedere se non manca qualcosa da inizalizzare
+						  
+						   --if bla bla change state
+						    if(i_start='1') then
+						        NEXT_STATE <= START;
+							end if;
+						   
+					when START => o_en <= '1';
+								  o_we <= '0';
+								  --go to SET_ADDRESS state
+								  NEXT_STATE <= READ_TYPE_LINE;
+									   
+					when READ_TYPE_LINE => 
+				                        
+					                    if(o_add="0000000000000000") then
+										    n_col <= unsigned(i_data);
+										    o_add<="0000000000001";
+											o_address <= "0000000000000001";
+											
+										else if(o_add(0)='1') then
+										    n_righe <= unsigned(i_data);
+											n_pixel <= n_col*n_righe;      --n pixel calcolo
+											NEXT_STATE <= READ_PIXEL;
+										end if;
+					                   
+					when READ_PIXEL =>
+					                o_add <= o_add + "0000000000000001";
+					                o_address <= o_add;
+					                
+					                if(contatore=n_pixel) then
+									    o_en <= '0';
+									    o_add <= "0000000000000010";
+										o_address <= "0000000000000010";
+										NEXT_STATE <= DELTA_VALUE;--stato cinque: calcolo delta value
+									else
+									    if(unsigned(i_data) > maxPixelValue) then
+										   maxPixelValue <= unsigned(i_data);
+										else if(unsigned(i_data) < minPixelValue) then
+										   minPixelValue <= unsigned(i_data);
+										end if;
+									    o_en <= '1';
+									    contatore <= contatore+"0000000000000001";
+									    NEXT_STATE <= READ_PIXEL;
+									end if;
+								
+									
+					when DELTA_VALUE =>
+					                --deltaValue=maxPixelValue-minPixelValue;
+									NEXT_STATE <= SHIFT_LEVEL;
+					                
+					when SHIFT_LEVEL =>
+					                --shiftLevel = (8 - FLOOR(LOG2(deltaValue +1)));
+									o_en <='1';
+									contatore <= "0000000000000000";
+									NEXT_STATE <= READ_PIXEL_AGAIN;
+									
+					when READ_PIXEL_AGAIN =>
+					                o_en <='0';
+									if(contatore=n_pixel) then
+									    NEXT_STATE <= DONE;
+									else
+									    contatore <= contatore+"0000000000000001";
+										--tempPixel=(unsigned(i_data)-minPixelValue)<<shiftLevel;
+										NEXT_STATE <= CALCULATE_NEW_VALUE;
+								    end if;
+									
+					when CALCULATE_NEW_VALUE => 
+					                
+					               -- o_data <= std_logic_vector(MIN(255,tempPixel));
+									NEXT_STATE <= WRITE_OUTPUT;
+									
+					when WRITE_OUTPUT =>
+					                --o_address <= std_logic_vector(unsigned(o_address) + n_pixel);
+									o_en <='1';
+									o_we <='1';
+									NEXT_STATE <= RESET_ADDRESS;
+									
+					when RESET_ADDRESS =>
+					                --o_address <= std_logic_vector(unsigned(o_address) - n_pixel);
+									o_en <='1';
+									o_we <= '0';
+									NEXT_STATE<=READ_PIXEL_AGAIN;
+					
+					when DONE =>
+                                    o_done<='1';
+                                    
+                    when others =>
+                                    o_en <='1';
+                end case;                       									
+			-end if;
+		 end process;
